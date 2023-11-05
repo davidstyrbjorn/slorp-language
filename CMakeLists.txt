@@ -16,4 +16,7 @@ add_executable(Slorp
 target_include_directories(Slorp PRIVATE ${CMAKE_SOURCE_DIR}/src/include)
 
 # Enable warnings
-target_compile_options(Slorp PRIVATE -Wall -Wextra)
+if(CMAKE_COMPILER_IS_GNUCC)
+    message(STATUS "GNU C Compiler detected, adding compile flags")
+    target_compile_options(Slorp PRIVATE -Wall -Wextra)
+endif(CMAKE_COMPILER_IS_GNUCC)
