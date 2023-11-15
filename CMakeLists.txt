@@ -10,6 +10,8 @@ add_executable(Slorp
     src/debug.c
     src/value.c
     src/vm.c
+    src/compiler.c
+    src/scanner.c
 )
 
 # Include directories!
