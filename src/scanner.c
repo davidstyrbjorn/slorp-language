@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
-#include "common.h"
-#include "scanner.h"
+#include "include/scanner.h"
 
 typedef struct
 {
@@ -87,6 +87,11 @@ static void skipWhitespace()
         case '\t':
             advance();
             break;
+        case '\n':
+            scanner.line++;
+            advance();
+            break;
+            
         case '/':
             if (peekNext() == '/')
             {
@@ -248,16 +253,22 @@ Token scanToken()
     skipWhitespace(); // will advance
     scanner.start = scanner.current;
 
-    if (isAtEnd())
+    if (isAtEnd()) 
+    {
         return makeToken(TOKEN_EOF);
+    }
 
     char c = advance(); // will advance
+    
     if (isAlpha(c))
+    {
         return identifier();
-    if (c == '"')
-        return string();
+    }
+    
     if (isDigit(c))
+    {
         return number();
+    }
 
     switch (c)
     {
@@ -295,10 +306,8 @@ Token scanToken()
     case '>':
         return makeToken(
             match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
-    case '\n':
-        scanner.line++;
-        advance();
-        break;
+    case '"':
+        return string();
     }
 
     return errorToken("Unexpected character");

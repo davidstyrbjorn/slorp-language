@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "memory.h"
-#include "value.h"
+#include "include/memory.h"
+#include "include/value.h"
 
 void initValueArray(ValueArray *array)
 {

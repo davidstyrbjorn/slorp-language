@@ -1,11 +1,9 @@
-#include <common.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "chunk.h"
-#include "debug.h"
-#include "vm.h"
+#include "include/common.h"
+#include "include/vm.h"
 
 #define DUMMY_LINE 123
 
@@ -47,7 +45,7 @@ static char *readFile(const char *path)
     HANDLE_ERROR(file == NULL, "Could not open file \"%s\".\n", path);
 
     fseek(file, 0L, SEEK_END);     // move file to end
-    size_t fileSize = ftell(file); // tell the size when stream is at end
+    const size_t fileSize = ftell(file); // tell the size when stream is at end
     rewind(file);                  // point back to start of stream
 
     char *buffer = (char *)malloc(fileSize + 1);
@@ -57,7 +55,7 @@ static char *readFile(const char *path)
     buffer[bytesRead] = '\0';
 
     fclose(file);
-    return file;
+    return buffer;;
 }
 
 /**
@@ -68,6 +66,7 @@ static char *readFile(const char *path)
 static void runFile(const char *path)
 {
     char *source = readFile(path);
+    printf("SOURCE: %s\n", source);
     InterpretResult result = interpret(source);
     free(source);
 

@@ -8,7 +8,6 @@ typedef double Value;
 /**
  * @brief Constnat pool, an array of values.
  * An instrction will look up a value in the array by index
- *
  */
 typedef struct
 {

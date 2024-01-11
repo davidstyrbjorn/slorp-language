@@ -1,8 +1,8 @@
 #ifndef slorp_chunk_h
 #define slorp_chunk_h
 
-#include "common.h"
 #include "value.h"
+#include <stdint.h>
 
 /**
  * @brief Our bytecode format

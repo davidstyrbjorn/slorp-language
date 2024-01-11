@@ -1,36 +1,336 @@
 #include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
-#include "common.h"
-#include "compiler.h"
-#include "scanner.h"
+#include "include/compiler.h"
+#include "include/chunk.h"
+#include "include/scanner.h"
+#include "include/value.h"
 
-void compile(const char *source)
+#ifdef DEBUG_PRINT_CODE
+#include "include/debug.h"
+#endif
+
+// This is a Pratt parser
+
+/*
+ * advance(), errorAtCurrent(), error(), consume() emitByte emitBytes()
+ */
+
+typedef struct
 {
-    initScanner(source);
+    Token current;
+    Token previous;
+    bool hadError;
+    bool panicMode;
+} Parser;
 
-    // At any point in time, the compiler needs only one or two tokens
-    // So we dont need to keep them all around
-    // We do not scan a token until we need one, when compiler needs one we just return next token by value
+// This define's Slorps precedence level in order from lowest to highest.
+typedef enum
+{
+    PREC_NONE = 0,
+    PREC_ASSIGNMENT, // =
+    PREC_OR,         // or
+    PREC_AND,        // and
+    PREC_EQUALITY,   // == !=
+    PREC_COMPARISON, // < > <= >=
+    PREC_TERM,       // + -
+    PREC_FACTOR,     // * /
+    PREC_UNARY,      // ! -
+    PREC_CALL,       // . ()
+    PREC_PRIMARY
+} Precedence;
 
-    int line = -1;
+typedef void (*ParseFn)();
+
+typedef struct
+{
+    ParseFn prefix;
+    ParseFn infix;
+    Precedence precedence;
+} ParseRule;
+
+Parser parser = {
+    .hadError = false,
+    .panicMode = false,
+};
+
+Chunk *compilingChunk;
+
+static Chunk *currentChunk()
+{
+    return compilingChunk;
+}
+
+static void errorAt(Token *token, const char *message)
+{
+    if (parser.panicMode)
+        return;
+    parser.panicMode = true;
+    fprintf(stderr, "[line %d] Error", token->line);
+
+    if (token->type == TOKEN_EOF)
+    {
+        fprintf(stderr, " at end");
+    }
+    else if (token->type == TOKEN_ERROR)
+    {
+        // Nothing.
+    }
+    else
+    {
+        fprintf(stderr, " at '%.*s' ", token->length, token->start);
+    }
+
+    fprintf(stderr, ": %s\n", message);
+    parser.hadError = true;
+}
+
+static void errorAtCurrent(const char *message)
+{
+    errorAt(&parser.current, message);
+}
+
+static void error(const char *message)
+{
+    errorAt(&parser.previous, message);
+}
+
+/**
+ * @brief Function for stepping through a token stream, front end of the parser/compiler
+ */
+static void advance()
+{
+    parser.previous = parser.current;
+
     for (;;)
     {
-        Token token = scanToken();
-        if (token.line != line)
-        {
-            printf("%4d ", token.line);
-            line = token.line;
-        }
-        else
-        {
-            printf("    | ");
-        }
-
-        printf("%d '%.*s'\n", token.type, token.length, token.start);
-
-        if (token.type == TOKEN_EOF)
-        {
+        parser.current = scanToken();
+        if (parser.current.type != TOKEN_ERROR)
             break;
-        }
+
+        errorAtCurrent(parser.current.start);
     }
+}
+
+static void consume(TokenType type, const char *message)
+{
+    if (parser.current.type == type)
+    {
+        advance();
+        return;
+    }
+
+    errorAtCurrent(message);
+}
+
+// "emitByte" write byte to the currentChunk aka our compilingChunk
+static void emitByte(uint8_t byte)
+{
+    writeChunk(currentChunk(), byte, parser.previous.line);
+}
+
+// Helper to emit 2 bytes with one function call instead of two
+static void emitBytes(uint8_t byte1, uint8_t byte2)
+{
+    emitByte(byte1);
+    emitByte(byte2);
+}
+
+static void emitReturn()
+{
+    emitByte(OP_RETURN);
+}
+
+// Add a value constant to the currentChunk()
+static uint8_t makeConstant(Value value)
+{
+    int constant = addConstant(currentChunk(), value);
+    if (constant > UINT8_MAX)
+    {
+        error("Too many constants in one chunk.");
+        return 0;
+    }
+
+    return (uint8_t)constant; // the index of the place the number is stored on the stack
+}
+
+static void emitConstant(Value value)
+{
+    emitBytes(OP_CONSTANT, makeConstant(value));
+}
+
+static void endCompiler()
+{
+    emitReturn();
+
+#ifdef DEBUG_PRINT_CODE
+    if (!parser.hadError)
+    {
+        dissassembleChunk(currentChunk(), "code");
+    }
+    else
+    {
+        printf("Error");
+    }
+#endif
+}
+
+static void expression();
+static ParseRule *getRule(TokenType type);
+static void parsePrecedence(Precedence precedence);
+
+static void grouping()
+{
+    expression(); // Recursive as heck
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
+/*
+ * To compile number literals we store a pointer to the following function at the TOKEN_NUMBE index in the array
+ */
+
+static void number()
+{
+    double value = strtold(parser.previous.start, NULL); // Converting char* to double here
+    emitConstant(value);
+}
+
+static void parsePrecedence(Precedence precedence)
+{
+    advance();
+    ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+    if (prefixRule == NULL)
+    {
+        error("Expected expression");
+        return;
+    }
+
+    prefixRule();
+
+    while (precedence <= getRule(parser.current.type)->precedence)
+    {
+        advance();
+        ParseFn infixRule = getRule(parser.previous.type)->infix;
+        infixRule();
+    }
+}
+
+static void unary()
+{
+    // Might seem weird to do expression and THEN emit the OP_NEGATE opcode but
+    // it is part of the compilers job to take the source code (stream of tokens)
+    // and re-arrange it to the correct execution order
+    // Here, when we call expression it will leave the evaluate and put on top of stack
+    // Then we pop that value, negate it and push the result.
+
+    TokenType operatorType = parser.previous.type;
+
+    // Evaluate expression as UNARY precedence
+    parsePrecedence(PREC_UNARY);
+
+    // Emit the operator instruction
+    switch (operatorType)
+    {
+    case TOKEN_MINUS:
+        emitByte(OP_NEGATE);
+        break;
+    default:
+        return; // Unreachable (syntatically)
+    }
+}
+
+// Prefix parser function, leading token (constant) has already been consumed
+static void binary()
+{
+    TokenType operatorType = parser.previous.type;
+    // This shall now consume the other part of the binary operation b of a op b
+    ParseRule *rule = getRule(operatorType);
+    parsePrecedence((Precedence)(rule->precedence + 1));
+
+    switch (operatorType)
+    {
+    case TOKEN_PLUS:
+        emitByte(OP_ADD);
+        break;
+    case TOKEN_MINUS:
+        emitByte(OP_SUBTRACT);
+        break;
+    case TOKEN_STAR:
+        emitByte(OP_MULTIPLY);
+        break;
+    case TOKEN_SLASH:
+        emitByte(OP_DIVIDE);
+        break;
+    default:
+        return; // unreachable
+    }
+}
+
+ParseRule rules[] = {
+    [TOKEN_LEFT_PAREN] = {grouping, NULL, PREC_NONE},
+    [TOKEN_RIGHT_PAREN] = {NULL, NULL, PREC_NONE},
+    [TOKEN_LEFT_BRACE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_RIGHT_BRACE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
+    [TOKEN_DOT] = {NULL, NULL, PREC_NONE},
+    [TOKEN_MINUS] = {unary, binary, PREC_TERM},
+    [TOKEN_PLUS] = {NULL, binary, PREC_TERM},
+    [TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
+    [TOKEN_SLASH] = {NULL, binary, PREC_FACTOR},
+    [TOKEN_STAR] = {NULL, binary, PREC_FACTOR},
+    [TOKEN_BANG] = {NULL, NULL, PREC_NONE},
+    [TOKEN_BANG_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_EQUAL_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_GREATER] = {NULL, NULL, PREC_NONE},
+    [TOKEN_GREATER_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_LESS] = {NULL, NULL, PREC_NONE},
+    [TOKEN_LESS_EQUAL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
+    [TOKEN_STRING] = {NULL, NULL, PREC_NONE},
+    [TOKEN_NUMBER] = {number, NULL, PREC_NONE},
+    [TOKEN_AND] = {NULL, NULL, PREC_NONE},
+    [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
+    [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_FOR] = {NULL, NULL, PREC_NONE},
+    [TOKEN_PROC] = {NULL, NULL, PREC_NONE},
+    [TOKEN_IF] = {NULL, NULL, PREC_NONE},
+    [TOKEN_NIL] = {NULL, NULL, PREC_NONE},
+    [TOKEN_OR] = {NULL, NULL, PREC_NONE},
+    [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
+    [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
+    [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
+    [TOKEN_THIS] = {NULL, NULL, PREC_NONE},
+    [TOKEN_TRUE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_DAT] = {NULL, NULL, PREC_NONE},
+    [TOKEN_WHILE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_ERROR] = {NULL, NULL, PREC_NONE},
+    [TOKEN_EOF] = {NULL, NULL, PREC_NONE},
+};
+
+static ParseRule *getRule(TokenType type)
+{
+    return &rules[type];
+}
+
+static void expression()
+{
+    parsePrecedence(PREC_ASSIGNMENT); // we call into parsing with the lowest precedence level
+}
+
+bool compile(const char *source, Chunk *chunk)
+{
+    initScanner(source);
+    compilingChunk = chunk; // Pointer to the chunk of bytecode we are compiling TO
+
+    advance();
+
+    expression(); // Parsing
+
+    consume(TOKEN_EOF, "Expect end of expression.");
+
+    endCompiler();
+    return !parser.hadError;
 }

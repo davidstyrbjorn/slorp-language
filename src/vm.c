@@ -1,8 +1,10 @@
-#include "common.h"
-#include "vm.h"
-#include "compiler.h"
+#include "include/common.h"
+#include "include/vm.h"
+#include "include/compiler.h"
 
-#include "debug.h"
+#include "include/debug.h"
+
+#include <stdio.h>
 
 VM vm;
 
@@ -27,11 +29,12 @@ static InterpretResult run()
 #define BINARY_OP(op)     \
     do                    \
     {                     \
-        \ 
         double b = pop(); \
         double a = pop(); \
         push(a op b);     \
     } while (false)
+
+    Value constant;
 
     for (;;)
     {
@@ -50,7 +53,7 @@ static InterpretResult run()
         switch (instruction = READ_BYTE())
         {
         case OP_CONSTANT:
-            Value constant = READ_CONSTANT();
+            constant = READ_CONSTANT();
             push(constant);
             break;
         case OP_RETURN:
@@ -75,15 +78,29 @@ static InterpretResult run()
         }
     }
 
-#undef READ_BYTE()
-#undef READ_CONSTANT()
-#undef BINARY_OP()
+#undef READ_BYTE
+#undef READ_CONSTANT
+#undef BINARY_OP
 }
 
 InterpretResult interpret(const char *source)
 {
-    compile(source);
-    return INTERPRET_OK;
+    Chunk chunk;
+    initChunk(&chunk);
+
+    if (!compile(source, &chunk))
+    {
+        freeChunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
+
+    InterpretResult result = run();
+
+    freeChunk(&chunk);
+    return result;
 }
 
 void push(Value value)
