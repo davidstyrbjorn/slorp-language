@@ -232,8 +232,8 @@ static void unary()
     // Emit the operator instruction
     switch (operatorType)
     {
-    case TOKEN_BANG: 
-        emitByte(OP_NOT); 
+    case TOKEN_BANG:
+        emitByte(OP_NOT);
         break;
     case TOKEN_MINUS:
         emitByte(OP_NEGATE);
@@ -254,16 +254,18 @@ static void binary()
     switch (operatorType)
     {
     case TOKEN_BANG_EQUAL:
-        emitBytes(OP_EQUAL, OP_NOT); break; 
+        emitBytes(OP_EQUAL, OP_NOT);
+        break;
         break;
     case TOKEN_EQUAL_EQUAL:
-        emitByte(OP_EQUAL); 
+        emitByte(OP_EQUAL);
         break;
     case TOKEN_GREATER:
         emitByte(OP_GREATER);
         break;
     case TOKEN_GREATER_EQUAL:
         emitBytes(OP_LESS, OP_NOT);
+        break;
     case TOKEN_LESS:
         emitByte(OP_LESS);
         break;
@@ -291,10 +293,17 @@ static void literal()
 {
     switch (parser.previous.type)
     {
-        case TOKEN_FALSE: emitByte(OP_FALSE); break;
-        case TOKEN_NIL: emitByte(OP_NIL); break;
-        case TOKEN_TRUE: emitByte(OP_TRUE); break;
-        default: return; // unreachable lol
+    case TOKEN_FALSE:
+        emitByte(OP_FALSE);
+        break;
+    case TOKEN_NIL:
+        emitByte(OP_NIL);
+        break;
+    case TOKEN_TRUE:
+        emitByte(OP_TRUE);
+        break;
+    default:
+        return; // unreachable lol
     }
 }
 
@@ -315,16 +324,16 @@ ParseRule rules[] = {
     [TOKEN_EQUAL] = {NULL, NULL, PREC_NONE},
     [TOKEN_EQUAL_EQUAL] = {NULL, binary, PREC_EQUALITY},
     [TOKEN_GREATER] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_GREATER_EQUAL] = {NULL,     binary, PREC_COMPARISON},
-    [TOKEN_LESS]          = {NULL,     binary, PREC_COMPARISON},
-    [TOKEN_LESS_EQUAL]    = {NULL,     binary, PREC_COMPARISON},
+    [TOKEN_GREATER_EQUAL] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_LESS] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_LESS_EQUAL] = {NULL, binary, PREC_COMPARISON},
     [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
     [TOKEN_STRING] = {NULL, NULL, PREC_NONE},
     [TOKEN_NUMBER] = {number, NULL, PREC_NONE},
     [TOKEN_AND] = {NULL, NULL, PREC_NONE},
     [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
     [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
-    [TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
+    [TOKEN_FALSE] = {literal, NULL, PREC_NONE},
     [TOKEN_FOR] = {NULL, NULL, PREC_NONE},
     [TOKEN_TRUE] = {literal, NULL, PREC_NONE},
     [TOKEN_NIL] = {literal, NULL, PREC_NONE},

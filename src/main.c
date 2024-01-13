@@ -44,9 +44,9 @@ static char *readFile(const char *path)
     FILE *file = fopen(path, "rb");
     HANDLE_ERROR(file == NULL, "Could not open file \"%s\".\n", path);
 
-    fseek(file, 0L, SEEK_END);     // move file to end
+    fseek(file, 0L, SEEK_END);           // move file to end
     const size_t fileSize = ftell(file); // tell the size when stream is at end
-    rewind(file);                  // point back to start of stream
+    rewind(file);                        // point back to start of stream
 
     char *buffer = (char *)malloc(fileSize + 1);
     HANDLE_ERROR(buffer == NULL, "Not enough memory to read \"%s\".\n", path);
@@ -55,7 +55,8 @@ static char *readFile(const char *path)
     buffer[bytesRead] = '\0';
 
     fclose(file);
-    return buffer;;
+    return buffer;
+    ;
 }
 
 /**
@@ -66,7 +67,6 @@ static char *readFile(const char *path)
 static void runFile(const char *path)
 {
     char *source = readFile(path);
-    printf("SOURCE: %s\n", source);
     InterpretResult result = interpret(source);
     free(source);
 
