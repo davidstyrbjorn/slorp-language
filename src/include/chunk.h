@@ -13,13 +13,20 @@
  */
 typedef enum
 {
-    OP_CONSTANT,
-    OP_NEGATE,
-    OP_RETURN,
-    OP_ADD,
-    OP_SUBTRACT,
-    OP_MULTIPLY,
-    OP_DIVIDE
+    OP_CONSTANT, // 1, 2, 3
+    OP_NEGATE, // -something
+    OP_RETURN, // return something
+    OP_NIL, // nil
+    OP_TRUE, // true
+    OP_FALSE, // false
+    OP_NOT, // !something
+    OP_ADD, // a + b
+    OP_SUBTRACT, // a - b
+    OP_MULTIPLY, // a * b
+    OP_DIVIDE, // a / b
+    OP_EQUAL, // ==
+    OP_GREATER, // >
+    OP_LESS, // <    
 } OpCode;
 
 /**

@@ -1,7 +1,8 @@
 #ifndef slorp_compiler_h
 #define slorp_compiler_h
 
-#include "vm.h"
+#include<stdbool.h>
+#include "chunk.h"
 
 /**
  * @brief Take a users program and fill up the chunk with bytecode
