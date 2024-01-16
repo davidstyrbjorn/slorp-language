@@ -4,6 +4,8 @@
 
 #include "include/common.h"
 #include "include/vm.h"
+#include "include/table.h"
+#include "include/object.h"
 
 #define DUMMY_LINE 123
 
@@ -61,12 +63,12 @@ static char *readFile(const char *path)
 
 /**
  * @brief Reads file from path into string then runs it through interpreter
- *
- * @param path
+ * @param path to file
  */
 static void runFile(const char *path)
 {
-    char *source = readFile(path);
+    // char *source = readFile(path);
+    char *source = "\"hehe\"";
     InterpretResult result = interpret(source);
     free(source);
 
@@ -85,7 +87,10 @@ static void runFile(const char *path)
 
 int main(int argc, const char *argv[])
 {
+    /*
     initVM();
+
+    runFile("");
 
     if (argc == 1)
     {
@@ -100,62 +105,19 @@ int main(int argc, const char *argv[])
         fprintf(stderr, "Usage: clox [path]\n");
     }
 
-    // Chunk chunk;
-    // initChunk(&chunk);
-
-    // 1 * 2 + 3
-    // int constant = addConstant(&chunk, 1);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // constant = addConstant(&chunk, 2);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // writeChunk(&chunk, OP_MULTIPLY, DUMMY_LINE);
-
-    // constant = addConstant(&chunk, 3);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // writeChunk(&chunk, OP_ADD, DUMMY_LINE);
-
-    // 1 + 2 * 3
-    // int constant = addConstant(&chunk, 2);
-
-    // int constant = addConstant(&chunk, 3);
-
-    // int constant = addConstant(&chunk, 1);
-
-    // 3 - 2 - 1
-
-    // 1 + 2 * 3 - 4 / 5
-
-    // int constant = addConstant(&chunk, 1.2);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // constant = addConstant(&chunk, 3.4);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // writeChunk(&chunk, OP_ADD, DUMMY_LINE);
-
-    // constant = addConstant(&chunk, 5.6);
-    // writeChunk(&chunk, OP_CONSTANT, DUMMY_LINE);
-    // writeChunk(&chunk, constant, DUMMY_LINE);
-
-    // writeChunk(&chunk, OP_DIVIDE, DUMMY_LINE);
-    // writeChunk(&chunk, OP_NEGATE, DUMMY_LINE);
-
-    // writeChunk(&chunk, OP_RETURN, DUMMY_LINE);
-
-    // InterpretResult interpret_result = interpret(&chunk);
-
-    // dissassembleChunk(&chunk, "test chunk");
-
     freeVM();
-    // freeChunk(&chunk);
+    */
+
+    Table table;
+    initTable(&table);
+
+    ObjString *a = takeString("Hehe", 4);
+    ObjString *b = takeString("Rere", 4);
+
+    tableSet(&table, &a, BOOL_VAL(true));
+    tableSet(&table, &b, BOOL_VAL(false));
+
+    freeTable(&table);
 
     return 0;
 }

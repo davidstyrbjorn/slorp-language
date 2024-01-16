@@ -3,7 +3,11 @@
 #include "include/debug.h"
 #include "include/value.h"
 #include "include/compiler.h"
+#include "include/object.h"
+#include "include/memory.h"
+#include "include/table.h"
 
+#include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -32,10 +36,15 @@ static void runtimeError(const char *format, ...)
 void initVM()
 {
     resetStack();
+    vm.objects = NULL;
+    initTable(&vm.strings);
 }
 
 void freeVM()
 {
+    // Free ALL objects
+    freeTable(&vm.strings);
+    freeObjects();
 }
 
 static Value peek(int distance)
@@ -47,6 +56,21 @@ static bool isFalsey(Value value)
 {
     // Base implementation follows Ruby: nil and false are falsey, every other value is true
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
+static void concatenate_strings()
+{
+    ObjString *b = AS_STRING(pop());
+    ObjString *a = AS_STRING(pop());
+
+    int length = a->length + b->length;
+    char *chars = ALLOCATE(char, length + 1);
+    memcpy(chars, a->chars, a->length);
+    memcpy(chars + a->length, b->chars, b->length);
+    chars[length] = '\0'; // Doing this means we can run this char* through functions like printf
+
+    ObjString *result = takeString(chars, length);
+    push(OBJ_VAL(result));
 }
 
 static InterpretResult run()
@@ -88,9 +112,15 @@ static InterpretResult run()
             constant = READ_CONSTANT();
             push(constant);
             break;
-        case OP_NIL: push(NIL_VAL); break;
-        case OP_TRUE: push(BOOL_VAL(true)); break;
-        case OP_FALSE: push(BOOL_VAL(false)); break;
+        case OP_NIL:
+            push(NIL_VAL);
+            break;
+        case OP_TRUE:
+            push(BOOL_VAL(true));
+            break;
+        case OP_FALSE:
+            push(BOOL_VAL(false));
+            break;
         case OP_RETURN:
             printValue(pop());
             printf("\n");
@@ -105,14 +135,34 @@ static InterpretResult run()
             push(NUMBER_VAL(-AS_NUMBER(pop())));
             break; // Take the top value of the stack, negate it
         case OP_ADD:
-            BINARY_OP(NUMBER_VAL, +);
-            break;
-        case OP_EQUAL: {
-                Value a = pop();
-                Value b = pop();
-                push(BOOL_VAL(valuesEqual(a, b)));
-                break;
+        {
+            // Concatenation can occur between numbers AND strings
+            if (IS_STRING(peek(0)) && IS_STRING(peek(1)))
+            {
+                concatenate_strings();
             }
+            else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1)))
+            {
+                // Pop our Value's from stack & convert them to C doubles
+                double b = AS_NUMBER(pop());
+                double a = AS_NUMBER(pop());
+                // Perform C addition then convert and push back value on stack
+                push(NUMBER_VAL(a + b));
+            }
+            else
+            {
+                runtimeError("Operands must be two numbers or two strings.");
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            break;
+        }
+        case OP_EQUAL:
+        {
+            Value a = pop();
+            Value b = pop();
+            push(BOOL_VAL(valuesEqual(a, b)));
+            break;
+        }
         case OP_GREATER:
             BINARY_OP(BOOL_VAL, >);
             break;
