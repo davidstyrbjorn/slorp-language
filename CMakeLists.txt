@@ -14,6 +14,7 @@ add_executable(Slorp
     src/scanner.c
     src/object.c
     src/table.c
+    src/error.c
 )
 
 # Include directories!

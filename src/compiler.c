@@ -7,6 +7,7 @@
 #include "include/scanner.h"
 #include "include/value.h"
 #include "include/object.h"
+#include "include/error.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "include/debug.h"
@@ -17,14 +18,6 @@
 /*
  * advance(), errorAtCurrent(), error(), consume() emitByte emitBytes()
  */
-
-typedef struct
-{
-    Token current;
-    Token previous;
-    bool hadError;
-    bool panicMode;
-} Parser;
 
 // This define's Slorps precedence level in order from lowest to highest.
 typedef enum
@@ -63,43 +56,7 @@ static Chunk *currentChunk()
     return compilingChunk;
 }
 
-static void errorAt(Token *token, const char *message)
-{
-    if (parser.panicMode)
-        return;
-    parser.panicMode = true;
-    fprintf(stderr, "[line %d] Error", token->line);
-
-    if (token->type == TOKEN_EOF)
-    {
-        fprintf(stderr, " at end");
-    }
-    else if (token->type == TOKEN_ERROR)
-    {
-        // Nothing.
-    }
-    else
-    {
-        fprintf(stderr, " at '%.*s' ", token->length, token->start);
-    }
-
-    fprintf(stderr, ": %s\n", message);
-    parser.hadError = true;
-}
-
-static void errorAtCurrent(const char *message)
-{
-    errorAt(&parser.current, message);
-}
-
-static void error(const char *message)
-{
-    errorAt(&parser.previous, message);
-}
-
-/**
- * @brief Function for stepping through a token stream, front end of the parser/compiler
- */
+/// @brief Function for stepping through a token stream, front end of the parser/compiler
 static void advance()
 {
     parser.previous = parser.current;
@@ -110,10 +67,11 @@ static void advance()
         if (parser.current.type != TOKEN_ERROR)
             break;
 
-        errorAtCurrent(parser.current.start);
+        errorAtCurrentToken(parser.current.start);
     }
 }
 
+/// @brief Similar to check and match but does both thing in one function TODO: not needed?
 static void consume(TokenType type, const char *message)
 {
     if (parser.current.type == type)
@@ -122,7 +80,23 @@ static void consume(TokenType type, const char *message)
         return;
     }
 
-    errorAtCurrent(message);
+    errorAtCurrentToken(message);
+}
+
+/// @brief Thin helper for checking if `type` is the currently parsed token
+static bool check(TokenType type)
+{
+    return parser.current.type == type;
+}
+
+/// @brief check if `type` is the currently parsed token,
+///        if it is, advance passed it and return true, otherwise return false
+static bool match(TokenType type)
+{
+    if (!check(type))
+        return false;
+    advance();
+    return true;
 }
 
 // "emitByte" write byte to the currentChunk aka our compilingChunk
@@ -149,7 +123,7 @@ static uint8_t makeConstant(Value value)
     int constant = addConstant(currentChunk(), value);
     if (constant > UINT8_MAX)
     {
-        error("Too many constants in one chunk.");
+        errorAtPreviousToken("Too many constants in one chunk.");
         return 0;
     }
 
@@ -178,6 +152,8 @@ static void endCompiler()
 }
 
 static void expression();
+static void statement();
+static void decleration();
 static ParseRule *getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
@@ -199,8 +175,8 @@ static void number()
 
 static void string()
 {
-    emitConstant(OBJ_VAL(copyString(parser.previous.start + 1, 
-        parser.previous.length-2)));
+    emitConstant(OBJ_VAL(copyString(parser.previous.start + 1,
+                                    parser.previous.length - 2)));
 }
 
 static void parsePrecedence(Precedence precedence)
@@ -209,7 +185,7 @@ static void parsePrecedence(Precedence precedence)
     ParseFn prefixRule = getRule(parser.previous.type)->prefix;
     if (prefixRule == NULL)
     {
-        error("Expected expression");
+        errorAtCurrentToken("Expected expression");
         return;
     }
 
@@ -367,6 +343,68 @@ static void expression()
     parsePrecedence(PREC_ASSIGNMENT); // we call into parsing with the lowest precedence level
 }
 
+static void expressionStatement()
+{
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emitByte(OP_POP);
+}
+
+static void printStatement()
+{
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+    emitByte(OP_PRINT); // The expression should have produced some sort of Value on the stack we can print!
+}
+
+static void synchronize()
+{
+    parser.panicMode = false;
+    while (parser.current.type != TOKEN_EOF)
+    {
+        // We indescrimentally skip tokens until we reach something that looks like the end of a statement (semicolon)
+        // Or until we reach something that looks like the beggining of a new statement. Usually a variable decleration or control flow keyword
+        if (parser.previous.type == TOKEN_SEMICOLON)
+            return;
+        switch (parser.current.type)
+        {
+        case TOKEN_CLASS:
+        case TOKEN_PROC:
+        case TOKEN_DAT:
+        case TOKEN_FOR:
+        case TOKEN_IF:
+        case TOKEN_WHILE:
+        case TOKEN_PRINT:
+        case TOKEN_RETURN:
+            return;
+        default:; // Do nohting
+        }
+
+        advance();
+    }
+}
+
+static void decleration()
+{
+    statement();
+
+    if (parser.panicMode)
+        synchronize();
+}
+
+static void statement()
+{
+    // Statement is either a print or a decleration
+    if (match(TOKEN_PRINT))
+    {
+        printStatement();
+    }
+    else
+    {
+        expressionStatement();
+    }
+}
+
 bool compile(const char *source, Chunk *chunk)
 {
     initScanner(source);
@@ -374,7 +412,11 @@ bool compile(const char *source, Chunk *chunk)
 
     advance();
 
-    expression(); // Parsing
+    // -> this wwas when we did only 1 expression! expression();
+    while (!match(TOKEN_EOF)) // a program is a sequence of declerations
+    {
+        decleration();
+    }
 
     consume(TOKEN_EOF, "Expect end of expression.");
 

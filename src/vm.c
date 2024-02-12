@@ -11,7 +11,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-VM vm;
+VM vm; // extern
 
 static void resetStack()
 {
@@ -121,9 +121,17 @@ static InterpretResult run()
         case OP_FALSE:
             push(BOOL_VAL(false));
             break;
-        case OP_RETURN:
-            printValue(pop());
+        case OP_POP:
+            pop();
+            break;
+        case OP_PRINT:
+        {
+            printValue(pop()); // The evaluated expression would have left a Value to print top of stack
             printf("\n");
+            break;
+        }
+        case OP_RETURN:
+            // Exit interpreter
             return INTERPRET_OK;
         case OP_NEGATE:
             if (!IS_NUMBER(peek(0)))

@@ -18,6 +18,15 @@
  */
 
 /**
+ * @brief
+     statement      → exprStmt
+                    | printStmt ;
+
+    * declaration    → varDecl
+                    | statement ;
+*/
+
+/**
  * @brief Take input from user while input is valid (ctrl+c will break)
  * run each line through interpret
  */
@@ -87,10 +96,7 @@ static void runFile(const char *path)
 
 int main(int argc, const char *argv[])
 {
-    /*
     initVM();
-
-    runFile("");
 
     if (argc == 1)
     {
@@ -106,18 +112,6 @@ int main(int argc, const char *argv[])
     }
 
     freeVM();
-    */
-
-    Table table;
-    initTable(&table);
-
-    ObjString *a = takeString("Hehe", 4);
-    ObjString *b = takeString("Rere", 4);
-
-    tableSet(&table, &a, BOOL_VAL(true));
-    tableSet(&table, &b, BOOL_VAL(false));
-
-    freeTable(&table);
 
     return 0;
 }
