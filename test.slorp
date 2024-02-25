@@ -1,1 +1,3 @@
-print "hello world" 
+print "Slorpor " + "balls";
+var x = "hej";
+print x;

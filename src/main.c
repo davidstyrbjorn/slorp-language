@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "include/common.h"
 #include "include/vm.h"
@@ -67,7 +68,6 @@ static char *readFile(const char *path)
 
     fclose(file);
     return buffer;
-    ;
 }
 
 /**
@@ -76,8 +76,8 @@ static char *readFile(const char *path)
  */
 static void runFile(const char *path)
 {
-    // char *source = readFile(path);
-    char *source = "\"hehe\"";
+    char *source = readFile(path);
+    // char *source = "";
     InterpretResult result = interpret(source);
     free(source);
 
@@ -98,18 +98,20 @@ int main(int argc, const char *argv[])
 {
     initVM();
 
-    if (argc == 1)
-    {
-        repl();
-    }
-    else if (argc == 2)
-    {
-        runFile(argv[1]);
-    }
-    else
-    {
-        fprintf(stderr, "Usage: clox [path]\n");
-    }
+    runFile("test.slorp");
+
+    // if (argc == 1)
+    // {
+    //     repl();
+    // }
+    // else if (argc == 2)
+    // {
+    //     runFile(argv[1]);
+    // }
+    // else
+    // {
+    //     fprintf(stderr, "Usage: clox [path]\n");
+    // }
 
     freeVM();
 

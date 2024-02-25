@@ -91,7 +91,7 @@ static void skipWhitespace()
             scanner.line++;
             advance();
             break;
-            
+
         case '/':
             if (peekNext() == '/')
             {
@@ -253,18 +253,18 @@ Token scanToken()
     skipWhitespace(); // will advance
     scanner.start = scanner.current;
 
-    if (isAtEnd()) 
+    if (isAtEnd())
     {
         return makeToken(TOKEN_EOF);
     }
 
     char c = advance(); // will advance
-    
+
     if (isAlpha(c))
     {
         return identifier();
     }
-    
+
     if (isDigit(c))
     {
         return number();

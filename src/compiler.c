@@ -15,6 +15,10 @@
 
 // This is a Pratt parser
 
+// For variable declerations three operations are needed
+// - Declaring a new variable using a dat statement
+// - Accessing the value of a variable using an identifier expression
+
 /*
  * advance(), errorAtCurrent(), error(), consume() emitByte emitBytes()
  */
@@ -179,6 +183,22 @@ static void string()
                                     parser.previous.length - 2)));
 }
 
+static uint8_t identifierConstant(Token *name)
+{
+    return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+}
+
+static void namedVariable(Token name)
+{
+    uint8_t arg = identifierConstant(&name);
+    emitBytes(OP_GET_GLOBAL, arg);
+}
+
+static void variable()
+{
+    namedVariable(parser.previous);
+}
+
 static void parsePrecedence(Precedence precedence)
 {
     advance();
@@ -197,6 +217,19 @@ static void parsePrecedence(Precedence precedence)
         ParseFn infixRule = getRule(parser.previous.type)->infix;
         infixRule();
     }
+}
+
+static uint8_t parseVariable(const char *errorMessage)
+{
+    // Requires the current token to be identifier, consume it
+    consume(TOKEN_IDENTIFIER, errorMessage);
+    return identifierConstant(&parser.previous); // from the previous token, make a constant and return its index
+}
+
+static void defineVariable(uint8_t global)
+{
+    // Variable is stored in bytecode as as a OP_DEFINE_GLOBAL variable byte followed by the lookup index into the global variable table
+    emitBytes(OP_DEFINE_GLOBAL, global);
 }
 
 static void unary()
@@ -310,7 +343,7 @@ ParseRule rules[] = {
     [TOKEN_GREATER_EQUAL] = {NULL, binary, PREC_COMPARISON},
     [TOKEN_LESS] = {NULL, binary, PREC_COMPARISON},
     [TOKEN_LESS_EQUAL] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_IDENTIFIER] = {NULL, NULL, PREC_NONE},
+    [TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
     [TOKEN_STRING] = {string, NULL, PREC_NONE},
     [TOKEN_NUMBER] = {number, NULL, PREC_NONE},
     [TOKEN_AND] = {NULL, NULL, PREC_NONE},
@@ -343,6 +376,22 @@ static void expression()
     parsePrecedence(PREC_ASSIGNMENT); // we call into parsing with the lowest precedence level
 }
 
+static void varDecleration()
+{
+    uint8_t globalIndex = parseVariable("Expect variable name.");
+    if (match(TOKEN_EQUAL))
+    {
+        expression(); // This should emit the actuallu initalization value
+    }
+    else // desugars var a; into var a = nil;
+    {
+        emitByte(OP_NIL);
+    }
+
+    consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration");
+    defineVariable(globalIndex);
+}
+
 static void expressionStatement()
 {
     expression();
@@ -352,7 +401,7 @@ static void expressionStatement()
 
 static void printStatement()
 {
-    expression();
+    expression(); // Evaluate an expression then emit a OP_PRINT
     consume(TOKEN_SEMICOLON, "Expect ';' after value.");
     emitByte(OP_PRINT); // The expression should have produced some sort of Value on the stack we can print!
 }
@@ -386,7 +435,14 @@ static void synchronize()
 
 static void decleration()
 {
-    statement();
+    if (match(TOKEN_DAT))
+    {
+        varDecleration();
+    }
+    else
+    {
+        statement();
+    }
 
     if (parser.panicMode)
         synchronize();
