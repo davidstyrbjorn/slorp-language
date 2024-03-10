@@ -1,3 +1,7 @@
-print "Slorpor " + "balls";
-var x = "hej";
-print x;
+{
+    {
+        var x = 3;
+        print x;
+    }
+    // print x; // Undefined variable 'x'
+}

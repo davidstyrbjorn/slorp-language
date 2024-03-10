@@ -128,6 +128,19 @@ static InterpretResult run()
         case OP_POP:
             pop();
             break;
+        case OP_GET_LOCAL:
+        {
+            uint8_t slot = READ_BYTE(); // index that we saved from in the compiliation step
+            push(vm.stack[slot]);       // push the index on the stack to the top of the stack
+            break;
+            break;
+        }
+        case OP_SET_LOCAL:
+        {
+            uint8_t slot = READ_BYTE();
+            vm.stack[slot] = peek(0);
+            break;
+        }
         case OP_GET_GLOBAL:
             name = READ_STRING();
             Value value;
@@ -183,6 +196,15 @@ static InterpretResult run()
             }
             break;
         }
+        case OP_SET_GLOBAL:
+            name = READ_STRING();
+            if (tableSet(&vm.globals, name, peek(0))) // returns false if it is a new key
+            {
+                tableDelete(&vm.globals, name);
+                runtimeError("Can't assign to undefined variable '%s'.", name->chars);
+                return INTERPRET_RUNTIME_ERROR;
+            }
+            break;
         case OP_EQUAL:
         {
             Value a = pop();

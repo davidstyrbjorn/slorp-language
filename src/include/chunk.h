@@ -29,7 +29,10 @@ typedef enum
     OP_LESS,          // <
     OP_DEFINE_GLOBAL, // in global scope: dat b = 3;
     OP_GET_GLOBAL,    // in any scope with a declared global var 'a': a;
-    OP_PRINT,         // statemtn -> print expression
+    OP_SET_GLOBAL,    // in any scope with a declared global var 'a': a = expression
+    OP_GET_LOCAL,
+    OP_SET_LOCAL,
+    OP_PRINT, // statemtn -> print expression
     OP_POP,
 } OpCode;
 
